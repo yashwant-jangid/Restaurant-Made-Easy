@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { orders, Order, menuItems } from '@/lib/data';
+import React, { useState, useEffect } from 'react';
+import { orders as initialOrders, Order, menuItems } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -32,12 +32,28 @@ import {
   BarChart3,
   Users,
   CreditCard,
-  Utensils
+  Utensils,
+  TrendingUp,
+  Sparkles,
+  Star
 } from "lucide-react";
 import { toast } from "sonner";
 
 const Dashboard = () => {
-  const [activeOrders, setActiveOrders] = useState<Order[]>(orders);
+  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  
+  // Load orders from localStorage if available
+  useEffect(() => {
+    const storedOrders = localStorage.getItem('restaurantOrders');
+    if (storedOrders) {
+      setActiveOrders(JSON.parse(storedOrders));
+    }
+  }, []);
+  
+  // Save orders to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('restaurantOrders', JSON.stringify(activeOrders));
+  }, [activeOrders]);
   
   const handleUpdateStatus = (orderId: string, newStatus: Order['status']) => {
     setActiveOrders(prevOrders =>
@@ -51,7 +67,7 @@ const Dashboard = () => {
   const getStatusBadge = (status: Order['status']) => {
     switch (status) {
       case 'pending':
-        return <Badge variant="outline" className="bg-secondary">Pending</Badge>;
+        return <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200">Pending</Badge>;
       case 'preparing':
         return <Badge variant="outline" className="bg-yellow-100 text-yellow-800 border-yellow-200">Preparing</Badge>;
       case 'ready':
@@ -63,12 +79,13 @@ const Dashboard = () => {
     }
   };
   
-  // Calculate some basic metrics for the dashboard
+  // Calculate metrics for the dashboard
   const totalOrders = activeOrders.length;
   const totalRevenue = activeOrders.reduce((sum, order) => sum + order.total, 0);
-  const averagePreparationTime = Math.round(
-    activeOrders.reduce((sum, order) => sum + order.estimatedTime, 0) / Math.max(1, totalOrders)
-  );
+  const averagePreparationTime = activeOrders.length > 0 ? 
+    Math.round(
+      activeOrders.reduce((sum, order) => sum + order.estimatedTime, 0) / Math.max(1, totalOrders)
+    ) : 0;
   
   // Most popular items (top 3)
   const popularItems = menuItems
@@ -79,75 +96,75 @@ const Dashboard = () => {
     <div className="container py-8">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
         <div>
-          <h1 className="text-3xl font-medium">Restaurant Dashboard</h1>
-          <p className="text-muted-foreground">Manage orders and view restaurant analytics</p>
+          <h1 className="text-4xl font-bold text-gradient bg-clip-text text-transparent bg-gradient-to-r from-purple-600 to-blue-500">Restaurant Dashboard</h1>
+          <p className="text-muted-foreground text-lg">Manage orders and view restaurant analytics</p>
         </div>
-        <Button>
+        <Button className="bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all">
           <Bell className="mr-2 h-4 w-4" />
           New Order Notifications
         </Button>
       </div>
       
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        <Card className="animate-slide-up" style={{ animationDelay: '0.1s' }}>
+        <Card className="animate-slide-up border-l-4 border-indigo-500 shadow-md hover:shadow-lg transition-all" style={{ animationDelay: '0.1s' }}>
           <CardHeader className="pb-2">
-            <CardDescription>Total Orders</CardDescription>
-            <CardTitle className="text-3xl flex items-end gap-2">
+            <CardDescription className="text-indigo-600 font-medium">Total Orders</CardDescription>
+            <CardTitle className="text-4xl flex items-end gap-2 font-bold">
               {totalOrders}
               <span className="text-sm text-muted-foreground font-normal">today</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground text-sm flex items-center">
-              <BarChart3 className="h-4 w-4 mr-1" />
+              <TrendingUp className="h-4 w-4 mr-1 text-green-500" />
               <span>+12% from yesterday</span>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="animate-slide-up" style={{ animationDelay: '0.2s' }}>
+        <Card className="animate-slide-up border-l-4 border-purple-500 shadow-md hover:shadow-lg transition-all" style={{ animationDelay: '0.2s' }}>
           <CardHeader className="pb-2">
-            <CardDescription>Revenue</CardDescription>
-            <CardTitle className="text-3xl flex items-end gap-2">
-              ${totalRevenue.toFixed(2)}
+            <CardDescription className="text-purple-600 font-medium">Revenue</CardDescription>
+            <CardTitle className="text-4xl flex items-end gap-2 font-bold">
+              ₹{totalRevenue.toFixed(2)}
               <span className="text-sm text-muted-foreground font-normal">today</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground text-sm flex items-center">
-              <CreditCard className="h-4 w-4 mr-1" />
-              <span>Average order: ${(totalRevenue / Math.max(1, totalOrders)).toFixed(2)}</span>
+              <CreditCard className="h-4 w-4 mr-1 text-green-500" />
+              <span>Average order: ₹{totalOrders > 0 ? (totalRevenue / totalOrders).toFixed(2) : '0.00'}</span>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="animate-slide-up" style={{ animationDelay: '0.3s' }}>
+        <Card className="animate-slide-up border-l-4 border-blue-500 shadow-md hover:shadow-lg transition-all" style={{ animationDelay: '0.3s' }}>
           <CardHeader className="pb-2">
-            <CardDescription>Avg. Preparation Time</CardDescription>
-            <CardTitle className="text-3xl flex items-end gap-2">
+            <CardDescription className="text-blue-600 font-medium">Avg. Preparation Time</CardDescription>
+            <CardTitle className="text-4xl flex items-end gap-2 font-bold">
               {averagePreparationTime}
               <span className="text-sm text-muted-foreground font-normal">minutes</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground text-sm flex items-center">
-              <Clock className="h-4 w-4 mr-1" />
+              <Clock className="h-4 w-4 mr-1 text-amber-500" />
               <span>-2 min from yesterday</span>
             </div>
           </CardContent>
         </Card>
         
-        <Card className="animate-slide-up" style={{ animationDelay: '0.4s' }}>
+        <Card className="animate-slide-up border-l-4 border-teal-500 shadow-md hover:shadow-lg transition-all" style={{ animationDelay: '0.4s' }}>
           <CardHeader className="pb-2">
-            <CardDescription>Active Tables</CardDescription>
-            <CardTitle className="text-3xl flex items-end gap-2">
+            <CardDescription className="text-teal-600 font-medium">Active Tables</CardDescription>
+            <CardTitle className="text-4xl flex items-end gap-2 font-bold">
               8
               <span className="text-sm text-muted-foreground font-normal">/ 20 total</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground text-sm flex items-center">
-              <Users className="h-4 w-4 mr-1" />
+              <Users className="h-4 w-4 mr-1 text-green-500" />
               <span>40% capacity</span>
             </div>
           </CardContent>
@@ -155,20 +172,23 @@ const Dashboard = () => {
       </div>
       
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-        <Card className="col-span-1 lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Active Orders</CardTitle>
+        <Card className="col-span-1 lg:col-span-2 shadow-md hover:shadow-lg transition-all">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b">
+            <CardTitle className="text-2xl font-bold flex items-center">
+              <Sparkles className="h-5 w-5 mr-2 text-amber-500" />
+              Active Orders
+            </CardTitle>
             <CardDescription>
               Manage and track customer orders in real-time
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="p-0">
             <Tabs defaultValue="all" className="w-full">
-              <TabsList className="grid grid-cols-4 mb-4">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="pending">Pending</TabsTrigger>
-                <TabsTrigger value="preparing">Preparing</TabsTrigger>
-                <TabsTrigger value="ready">Ready</TabsTrigger>
+              <TabsList className="grid grid-cols-4 p-4">
+                <TabsTrigger value="all" className="font-medium">All</TabsTrigger>
+                <TabsTrigger value="pending" className="font-medium">Pending</TabsTrigger>
+                <TabsTrigger value="preparing" className="font-medium">Preparing</TabsTrigger>
+                <TabsTrigger value="ready" className="font-medium">Ready</TabsTrigger>
               </TabsList>
               
               <TabsContent value="all" className="mt-0">
@@ -328,18 +348,21 @@ const Dashboard = () => {
           </CardContent>
         </Card>
         
-        <Card>
-          <CardHeader>
-            <CardTitle>Popular Items</CardTitle>
+        <Card className="shadow-md hover:shadow-lg transition-all">
+          <CardHeader className="bg-gradient-to-r from-slate-50 to-slate-100 border-b">
+            <CardTitle className="text-2xl font-bold flex items-center">
+              <Star className="h-5 w-5 mr-2 text-amber-500" />
+              Popular Items
+            </CardTitle>
             <CardDescription>
               Most ordered dishes this week
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
+            <div className="space-y-4 pt-2">
               {popularItems.map(item => (
-                <div key={item.id} className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-md overflow-hidden shrink-0">
+                <div key={item.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-lg transition-colors">
+                  <div className="w-16 h-16 rounded-md overflow-hidden shrink-0 border shadow-sm">
                     <img 
                       src={item.image} 
                       alt={item.name} 
@@ -358,7 +381,7 @@ const Dashboard = () => {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-medium">${item.price.toFixed(2)}</p>
+                    <p className="font-medium">₹{item.price.toFixed(2)}</p>
                   </div>
                 </div>
               ))}

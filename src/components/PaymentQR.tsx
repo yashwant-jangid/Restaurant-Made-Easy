@@ -25,20 +25,20 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button className="w-full h-12">
+        <Button className="w-full h-12 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all font-medium">
           <QrCode className="h-4 w-4 mr-2" />
           Pay with UPI QR ₹{amount.toFixed(2)}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Scan QR to Pay</DialogTitle>
+          <DialogTitle className="text-xl font-bold">Scan QR to Pay</DialogTitle>
           <DialogDescription>
             Open your UPI app and scan this QR code to complete payment of ₹{amount.toFixed(2)}
           </DialogDescription>
         </DialogHeader>
         <div className="flex items-center justify-center p-4">
-          <div className="border rounded-lg p-2 bg-white">
+          <div className="border rounded-lg p-2 bg-white shadow-md">
             <img src={qrImageUrl} alt="Payment QR" className="w-64 h-64" />
           </div>
         </div>
@@ -48,9 +48,9 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         </div>
         <DialogFooter>
           <Button 
-            variant="outline" 
+            variant="default"
             onClick={onPaymentComplete}
-            className="w-full"
+            className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
           >
             I've Completed Payment
           </Button>
