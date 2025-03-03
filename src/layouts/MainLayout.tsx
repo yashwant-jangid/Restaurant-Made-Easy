@@ -3,7 +3,7 @@ import React, { ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { CartProvider } from '@/context/CartContext';
 import Cart from '@/components/Cart';
-import { User, Menu as MenuIcon, Home, BarChart3 } from 'lucide-react';
+import { User, Menu as MenuIcon, Home, BarChart3, MessageSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
@@ -18,7 +18,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     return location.pathname === path;
   };
   
-  const showCart = !isActive('/status') && !isActive('/');
+  const showCart = !isActive('/status') && !isActive('/') && !isActive('/feedback');
   
   return (
     <CartProvider>
@@ -39,6 +39,11 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 <Link to="/status">
                   <Button variant={isActive('/status') ? "default" : "ghost"} size="sm">
                     Track Order
+                  </Button>
+                </Link>
+                <Link to="/feedback">
+                  <Button variant={isActive('/feedback') ? "default" : "ghost"} size="sm">
+                    Feedback
                   </Button>
                 </Link>
                 <Link to="/dashboard">
@@ -76,6 +81,12 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                         Track Order
                       </Button>
                     </Link>
+                    <Link to="/feedback">
+                      <Button variant="ghost" className="w-full justify-start" size="lg">
+                        <MessageSquare className="mr-2 h-5 w-5" />
+                        Feedback
+                      </Button>
+                    </Link>
                     <Link to="/dashboard">
                       <Button variant="ghost" className="w-full justify-start" size="lg">
                         <BarChart3 className="mr-2 h-5 w-5" />
@@ -101,7 +112,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="flex items-center gap-4 text-sm text-muted-foreground">
               <Link to="#" className="hover:underline">Privacy</Link>
               <Link to="#" className="hover:underline">Terms</Link>
-              <Link to="#" className="hover:underline">Contact</Link>
+              <Link to="/feedback" className="hover:underline">Feedback</Link>
             </div>
           </div>
         </footer>

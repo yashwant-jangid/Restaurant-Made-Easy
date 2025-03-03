@@ -11,13 +11,14 @@ import {
   SheetTrigger 
 } from '@/components/ui/sheet';
 import { Button } from '@/components/ui/button';
-import { ShoppingCart, Plus, Minus, Clock, CreditCard, Check } from 'lucide-react';
+import { ShoppingCart, Plus, Minus, Clock, IndianRupee, Check } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
+import PaymentQR from './PaymentQR';
 
 const Cart: React.FC = () => {
   const { cart, updateQuantity, clearCart, setTableNumber } = useCart();
@@ -32,7 +33,7 @@ const Cart: React.FC = () => {
     }
   };
 
-  const handleCheckout = () => {
+  const handlePaymentComplete = () => {
     if (cart.items.length === 0) {
       toast.error("Your cart is empty");
       return;
@@ -42,13 +43,17 @@ const Cart: React.FC = () => {
     
     // Simulate payment processing
     setTimeout(() => {
-      toast.success("Order placed successfully!");
+      toast.success("Payment successful! Order placed.");
       clearCart();
       setIsProcessing(false);
       setIsOpen(false);
       navigate('/status');
     }, 2000);
   };
+
+  // Calculate service fee and total
+  const serviceFee = cart.total * 0.05;
+  const totalAmount = cart.total + serviceFee;
 
   return (
     <Sheet open={isOpen} onOpenChange={setIsOpen}>
@@ -99,7 +104,10 @@ const Cart: React.FC = () => {
                       </div>
                       <div className="flex-1 min-w-0">
                         <h4 className="font-medium text-sm">{item.name}</h4>
-                        <p className="text-muted-foreground text-xs mt-1">${item.price.toFixed(2)}</p>
+                        <p className="text-muted-foreground text-xs mt-1 flex items-center">
+                          <IndianRupee className="h-3 w-3 mr-1" />
+                          {item.price.toFixed(2)}
+                        </p>
                         <div className="flex items-center mt-2">
                           <Button 
                             variant="outline" 
@@ -120,8 +128,9 @@ const Cart: React.FC = () => {
                           </Button>
                         </div>
                       </div>
-                      <div className="text-right shrink-0">
-                        <p className="font-medium">${(item.price * item.quantity).toFixed(2)}</p>
+                      <div className="text-right shrink-0 flex items-center">
+                        <IndianRupee className="h-3 w-3 mr-1" />
+                        <p className="font-medium">{(item.price * item.quantity).toFixed(2)}</p>
                       </div>
                     </div>
                   ))}
@@ -154,16 +163,25 @@ const Cart: React.FC = () => {
                 <div className="space-y-3 mt-6">
                   <div className="flex justify-between">
                     <span className="text-muted-foreground">Subtotal</span>
-                    <span>${cart.total.toFixed(2)}</span>
+                    <div className="flex items-center">
+                      <IndianRupee className="h-3 w-3 mr-1" />
+                      <span>{cart.total.toFixed(2)}</span>
+                    </div>
                   </div>
                   <div className="flex justify-between">
-                    <span className="text-muted-foreground">Service Fee</span>
-                    <span>${(cart.total * 0.05).toFixed(2)}</span>
+                    <span className="text-muted-foreground">Service Fee (5%)</span>
+                    <div className="flex items-center">
+                      <IndianRupee className="h-3 w-3 mr-1" />
+                      <span>{serviceFee.toFixed(2)}</span>
+                    </div>
                   </div>
                   <Separator />
                   <div className="flex justify-between font-medium text-lg">
                     <span>Total</span>
-                    <span>${(cart.total * 1.05).toFixed(2)}</span>
+                    <div className="flex items-center">
+                      <IndianRupee className="h-4 w-4 mr-1" />
+                      <span>{totalAmount.toFixed(2)}</span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -173,20 +191,10 @@ const Cart: React.FC = () => {
         
         <SheetFooter className="p-6 pt-4">
           {cart.items.length > 0 ? (
-            <Button 
-              className="w-full h-12" 
-              onClick={handleCheckout}
-              disabled={isProcessing}
-            >
-              {isProcessing ? (
-                <>Processing...</>
-              ) : (
-                <>
-                  <CreditCard className="h-4 w-4 mr-2" />
-                  Pay ${(cart.total * 1.05).toFixed(2)}
-                </>
-              )}
-            </Button>
+            <PaymentQR 
+              amount={totalAmount} 
+              onPaymentComplete={handlePaymentComplete} 
+            />
           ) : (
             <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full">
               Continue Browsing

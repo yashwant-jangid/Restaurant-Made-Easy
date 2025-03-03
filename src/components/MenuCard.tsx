@@ -2,7 +2,7 @@
 import React from 'react';
 import { MenuItem, getRecommendations } from '@/lib/data';
 import { useCart } from '@/context/CartContext';
-import { Plus } from 'lucide-react';
+import { Plus, IndianRupee } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { 
@@ -59,7 +59,10 @@ const MenuCard: React.FC<MenuCardProps> = ({ item }) => {
               </Badge>
             )}
           </div>
-          <span className="font-medium text-primary">${item.price.toFixed(2)}</span>
+          <span className="font-medium text-primary flex items-center">
+            <IndianRupee className="h-3 w-3 mr-1" />
+            {item.price.toFixed(2)}
+          </span>
         </div>
         <CardTitle className="text-lg font-medium mt-1">{item.name}</CardTitle>
         <CardDescription className="text-sm line-clamp-2 mt-1">
@@ -93,7 +96,10 @@ const MenuCard: React.FC<MenuCardProps> = ({ item }) => {
               </div>
               <div className="flex justify-between items-center mb-4">
                 <span className="text-sm text-muted-foreground">Preparation time: ~{item.preparationTime} min</span>
-                <span className="font-semibold">${item.price.toFixed(2)}</span>
+                <span className="font-semibold flex items-center">
+                  <IndianRupee className="h-3 w-3 mr-1" />
+                  {item.price.toFixed(2)}
+                </span>
               </div>
               
               {recommendations.length > 0 && (
@@ -109,7 +115,10 @@ const MenuCard: React.FC<MenuCardProps> = ({ item }) => {
                         />
                         <div className="flex-1 min-w-0">
                           <h5 className="text-xs font-medium truncate">{rec.name}</h5>
-                          <p className="text-xs text-muted-foreground">${rec.price.toFixed(2)}</p>
+                          <p className="text-xs text-muted-foreground flex items-center">
+                            <IndianRupee className="h-2 w-2 mr-1" />
+                            {rec.price.toFixed(2)}
+                          </p>
                         </div>
                       </div>
                     ))}

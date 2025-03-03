@@ -9,6 +9,7 @@ import Index from "./pages/Index";
 import Menu from "./pages/Menu";
 import Status from "./pages/Status";
 import Dashboard from "./pages/Dashboard";
+import Feedback from "./pages/Feedback";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -24,6 +25,7 @@ const App = () => (
           <Route path="/menu" element={<MainLayout><Menu /></MainLayout>} />
           <Route path="/status" element={<MainLayout><Status /></MainLayout>} />
           <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
+          <Route path="/feedback" element={<MainLayout><Feedback /></MainLayout>} />
           <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
         </Routes>
       </BrowserRouter>
