@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { orders as initialOrders, Order, menuItems } from '@/lib/data';
+import { Order, menuItems } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -41,14 +41,24 @@ import { toast } from "sonner";
 
 const Dashboard = () => {
   const [activeOrders, setActiveOrders] = useState<Order[]>([]);
+  const [refreshCounter, setRefreshCounter] = useState(0);
   
-  // Load orders from localStorage if available
+  // Poll for updates every 5 seconds
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setRefreshCounter(prev => prev + 1);
+    }, 5000);
+    
+    return () => clearInterval(intervalId);
+  }, []);
+  
+  // Load orders from localStorage whenever refreshCounter changes
   useEffect(() => {
     const storedOrders = localStorage.getItem('restaurantOrders');
     if (storedOrders) {
       setActiveOrders(JSON.parse(storedOrders));
     }
-  }, []);
+  }, [refreshCounter]);
   
   // Save orders to localStorage whenever they change
   useEffect(() => {

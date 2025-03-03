@@ -25,17 +25,17 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
       const randomLoad = loads[Math.floor(Math.random() * loads.length)];
       setKitchenLoad(randomLoad);
       
-      // Adjust preparation times based on kitchen load
-      let pendingTime = 8000; // base time in ms
-      let preparingTime = 12000; // base time in ms
+      // Adjust preparation times based on kitchen load - make them much longer for demo purposes
+      let pendingTime = 30000; // 30 seconds in ms
+      let preparingTime = 45000; // 45 seconds in ms
       
       if (randomLoad === 'high') {
-        pendingTime = 12000;
-        preparingTime = 20000;
+        pendingTime = 40000; // 40 seconds
+        preparingTime = 60000; // 60 seconds
         setTimeRemaining(prev => Math.min(25, prev + 5));
       } else if (randomLoad === 'low') {
-        pendingTime = 6000;
-        preparingTime = 9000;
+        pendingTime = 25000; // 25 seconds
+        preparingTime = 35000; // 35 seconds
         setTimeRemaining(prev => Math.max(10, prev - 3));
       }
       

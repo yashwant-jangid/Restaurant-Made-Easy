@@ -11,6 +11,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useCart } from '@/context/CartContext';
+import { toast } from 'sonner';
 
 interface PaymentQRProps {
   amount: number;
@@ -18,9 +20,34 @@ interface PaymentQRProps {
 }
 
 const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
+  const { cart } = useCart();
+  
   // In a real app, this would be dynamically generated with the payment amount
   // and merchant details from a payment gateway
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=example@upi&pn=RestaurantMadeEasy&am=${amount}&cu=INR&tn=FoodOrder`;
+  
+  const handlePaymentComplete = () => {
+    // Save the order data to localStorage for the dashboard
+    const existingOrders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
+    const newOrder = {
+      id: Math.floor(1000 + Math.random() * 9000).toString(), // Generate random 4-digit order ID
+      items: cart.items,
+      status: 'pending',
+      tableNumber: cart.tableNumber,
+      total: amount,
+      timestamp: new Date(),
+      estimatedTime: cart.estimatedTime
+    };
+    
+    const updatedOrders = [newOrder, ...existingOrders];
+    localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+    
+    // Notify with a toast
+    toast.success(`Order #${newOrder.id} placed successfully!`);
+    
+    // Continue with regular payment completion
+    onPaymentComplete();
+  };
   
   return (
     <Dialog>
@@ -49,7 +76,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         <DialogFooter>
           <Button 
             variant="default"
-            onClick={onPaymentComplete}
+            onClick={handlePaymentComplete}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
           >
             I've Completed Payment
