@@ -19,6 +19,9 @@ interface PaymentQRProps {
   onPaymentComplete: () => void;
 }
 
+// API URL for our Azure Functions backend
+const API_URL = "https://your-azure-function-app.azurewebsites.net/api";
+
 const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   const { cart } = useCart();
   
@@ -26,27 +29,47 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   // and merchant details from a payment gateway
   const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=example@upi&pn=RestaurantMadeEasy&am=${amount}&cu=INR&tn=FoodOrder`;
   
-  const handlePaymentComplete = () => {
-    // Save the order data to localStorage for the dashboard
-    const existingOrders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
-    const newOrder = {
-      id: Math.floor(1000 + Math.random() * 9000).toString(), // Generate random 4-digit order ID
-      items: cart.items,
-      status: 'pending',
-      tableNumber: cart.tableNumber,
-      total: amount,
-      timestamp: new Date(),
-      estimatedTime: cart.estimatedTime
-    };
-    
-    const updatedOrders = [newOrder, ...existingOrders];
-    localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
-    
-    // Notify with a toast
-    toast.success(`Order #${newOrder.id} placed successfully!`);
-    
-    // Continue with regular payment completion
-    onPaymentComplete();
+  const handlePaymentComplete = async () => {
+    try {
+      // Create new order object
+      const newOrder = {
+        id: Math.floor(1000 + Math.random() * 9000).toString(), // Generate random 4-digit order ID
+        items: cart.items,
+        status: 'pending',
+        tableNumber: cart.tableNumber,
+        total: amount,
+        timestamp: new Date().toISOString(),
+        estimatedTime: cart.estimatedTime
+      };
+      
+      // Also save to localStorage as fallback for demo purposes
+      const existingOrders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
+      const updatedOrders = [newOrder, ...existingOrders];
+      localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+      
+      // Send the order to Azure Function API
+      const response = await fetch(`${API_URL}/orders`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(newOrder),
+      });
+      
+      if (!response.ok) {
+        throw new Error('Failed to save order to database');
+      }
+      
+      // Notify with a toast
+      toast.success(`Order #${newOrder.id} placed successfully!`);
+      
+      // Continue with regular payment completion
+      onPaymentComplete();
+    } catch (error) {
+      console.error('Error saving order:', error);
+      toast.error('Order saved locally only. Database connection failed.');
+      onPaymentComplete();
+    }
   };
   
   return (

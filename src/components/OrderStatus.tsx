@@ -4,59 +4,113 @@ import { Check, Clock, ChefHat, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
+import { toast } from 'sonner';
+
+// API URL for our Azure Functions backend
+const API_URL = "https://your-azure-function-app.azurewebsites.net/api";
 
 interface OrderStatusProps {
   orderId?: string;
 }
 
+type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
+
 const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
-  const [status, setStatus] = useState<'pending' | 'preparing' | 'ready' | 'completed'>('pending');
+  const [status, setStatus] = useState<OrderStatus>('pending');
   const [progress, setProgress] = useState(10);
   const [timeRemaining, setTimeRemaining] = useState(15);
   const [kitchenLoad, setKitchenLoad] = useState('medium'); // 'low', 'medium', 'high'
+  const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   
+  // Fetch order status from API
   useEffect(() => {
-    // Simulate order progression with more realistic timing
-    // In a real app, this would be based on actual kitchen status and order complexity
-    const simulateKitchenStatus = () => {
-      // Randomly determine current kitchen load
-      const loads = ['low', 'medium', 'high'];
-      const randomLoad = loads[Math.floor(Math.random() * loads.length)];
-      setKitchenLoad(randomLoad);
-      
-      // Adjust preparation times based on kitchen load - make them much longer for demo purposes
-      let pendingTime = 30000; // 30 seconds in ms
-      let preparingTime = 45000; // 45 seconds in ms
-      
-      if (randomLoad === 'high') {
-        pendingTime = 40000; // 40 seconds
-        preparingTime = 60000; // 60 seconds
-        setTimeRemaining(prev => Math.min(25, prev + 5));
-      } else if (randomLoad === 'low') {
-        pendingTime = 25000; // 25 seconds
-        preparingTime = 35000; // 35 seconds
-        setTimeRemaining(prev => Math.max(10, prev - 3));
-      }
-      
-      const timer = setTimeout(() => {
-        if (status === 'pending') {
-          setStatus('preparing');
-          setProgress(40);
-          setTimeRemaining(prev => Math.max(5, prev - 5));
-        } else if (status === 'preparing') {
-          setStatus('ready');
-          setProgress(100);
-          setTimeRemaining(0);
+    const fetchOrderStatus = async () => {
+      try {
+        // First try to get from API
+        const response = await fetch(`${API_URL}/orders/${orderId}`);
+        
+        if (response.ok) {
+          const orderData = await response.json();
+          setStatus(orderData.status);
+          setTimeRemaining(orderData.estimatedTimeRemaining || 15);
+          setKitchenLoad(orderData.kitchenLoad || 'medium');
+          setLoading(false);
+        } else {
+          // Fallback to localStorage for demo
+          fallbackToLocalStorage();
         }
-      }, status === 'pending' ? pendingTime : preparingTime);
-      
-      return () => clearTimeout(timer);
+      } catch (error) {
+        console.error('Error fetching order status:', error);
+        // Fallback to localStorage for demo
+        fallbackToLocalStorage();
+      }
     };
     
-    return simulateKitchenStatus();
-  }, [status]);
+    const fallbackToLocalStorage = () => {
+      // Get from localStorage as fallback
+      const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
+      const order = orders.find((o: any) => o.id === orderId);
+      
+      if (order) {
+        setStatus(order.status || 'pending');
+        setTimeRemaining(order.estimatedTime || 15);
+      } else {
+        // Use demo data
+        simulateKitchenStatus();
+      }
+      
+      setLoading(false);
+    };
+    
+    // Poll for updates every 5 seconds
+    fetchOrderStatus();
+    const interval = setInterval(fetchOrderStatus, 5000);
+    
+    return () => clearInterval(interval);
+  }, [orderId]);
   
+  // Simulate order progression for demo purposes
+  const simulateKitchenStatus = () => {
+    // Randomly determine current kitchen load
+    const loads = ['low', 'medium', 'high'];
+    const randomLoad = loads[Math.floor(Math.random() * loads.length)];
+    setKitchenLoad(randomLoad);
+    
+    // Adjust preparation times based on kitchen load - make them more realistic
+    let pendingTime = 30000; // 30 seconds in ms
+    let preparingTime = 45000; // 45 seconds in ms
+    
+    if (randomLoad === 'high') {
+      pendingTime = 40000; // 40 seconds
+      preparingTime = 60000; // 60 seconds
+      setTimeRemaining(prev => Math.min(25, prev + 5));
+    } else if (randomLoad === 'low') {
+      pendingTime = 25000; // 25 seconds
+      preparingTime = 35000; // 35 seconds
+      setTimeRemaining(prev => Math.max(10, prev - 3));
+    }
+    
+    if (status === 'pending') {
+      const timer = setTimeout(() => {
+        setStatus('preparing');
+        setProgress(40);
+        setTimeRemaining(prev => Math.max(5, prev - 5));
+      }, pendingTime);
+      
+      return () => clearTimeout(timer);
+    } else if (status === 'preparing') {
+      const timer = setTimeout(() => {
+        setStatus('ready');
+        setProgress(100);
+        setTimeRemaining(0);
+      }, preparingTime);
+      
+      return () => clearTimeout(timer);
+    }
+  };
+  
+  // Update progress based on time remaining
   useEffect(() => {
     if (timeRemaining > 0) {
       const timer = setTimeout(() => {
@@ -80,7 +134,35 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
     }
   }, [timeRemaining, status]);
   
-  const handleComplete = () => {
+  const handleComplete = async () => {
+    try {
+      // Update order status to completed in API
+      const response = await fetch(`${API_URL}/orders/${orderId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ status: 'completed' }),
+      });
+      
+      if (!response.ok) {
+        // Fallback for demo: update in localStorage
+        const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
+        const updatedOrders = orders.map((order: any) => 
+          order.id === orderId ? { ...order, status: 'completed' } : order
+        );
+        localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+      }
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      // Fallback for demo: update in localStorage
+      const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
+      const updatedOrders = orders.map((order: any) => 
+        order.id === orderId ? { ...order, status: 'completed' } : order
+      );
+      localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+    }
+    
     setStatus('completed');
     setTimeout(() => {
       navigate('/feedback');
@@ -94,6 +176,17 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
       default: return "Our kitchen is processing orders at a normal pace.";
     }
   };
+  
+  if (loading) {
+    return (
+      <div className="w-full max-w-md mx-auto p-6 flex justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading order details...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="w-full max-w-md mx-auto animate-fade-in">
