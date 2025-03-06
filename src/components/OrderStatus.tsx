@@ -1,3 +1,4 @@
+
 import React, { useEffect, useState } from 'react';
 import { Check, Clock, ChefHat, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +21,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
   const [loading, setLoading] = useState(true);
   const [orderNumber, setOrderNumber] = useState<string>('');
   const [orderId2, setOrderId2] = useState<string | undefined>(orderId);
+  const [estimatedReadyTime, setEstimatedReadyTime] = useState<string>('');
   const navigate = useNavigate();
   
   // Fetch latest order if no orderId provided
@@ -46,6 +48,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
             setOrderNumber(data.order_number);
             setOrderId2(data.id);
             updateProgressBasedOnStatus(data.status as OrderStatus);
+            calculateEstimatedReadyTime(data.estimated_time);
           }
         } else {
           // Otherwise fetch the latest order
@@ -68,6 +71,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
             setOrderNumber(data.order_number);
             setOrderId2(data.id);
             updateProgressBasedOnStatus(data.status as OrderStatus);
+            calculateEstimatedReadyTime(data.estimated_time);
           }
         }
         
@@ -86,6 +90,21 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
     fetchLatestOrder();
   }, [orderId]);
   
+  // Calculate the estimated ready time in clock format
+  const calculateEstimatedReadyTime = (minutes: number) => {
+    const now = new Date();
+    const estimatedTime = new Date(now.getTime() + minutes * 60000);
+    
+    // Format the time as HH:MM AM/PM
+    let hours = estimatedTime.getHours();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // the hour '0' should be '12'
+    const minutes_ = estimatedTime.getMinutes().toString().padStart(2, '0');
+    
+    setEstimatedReadyTime(`${hours}:${minutes_} ${ampm}`);
+  };
+
   const updateProgressBasedOnStatus = (orderStatus: OrderStatus) => {
     if (orderStatus === 'pending') {
       setProgress(10);
@@ -133,6 +152,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
     setStatus(newStatus);
     setTimeRemaining(estimatedTime);
     updateProgressBasedOnStatus(newStatus);
+    calculateEstimatedReadyTime(estimatedTime);
   };
   
   // Update progress based on time remaining
@@ -251,8 +271,9 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
               <span>Enjoy your meal!</span>
             ) : (
               <>
-                <span>Estimated time: </span>
-                <span>{timeRemaining} minutes</span>
+                <span className="text-muted-foreground mr-1">Ready by:</span>
+                <span className="text-primary font-semibold">{estimatedReadyTime}</span>
+                <span className="text-sm text-muted-foreground ml-1">({timeRemaining} min)</span>
               </>
             )}
           </div>

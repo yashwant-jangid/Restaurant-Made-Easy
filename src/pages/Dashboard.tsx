@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { menuItems } from '@/lib/data';
 import {
@@ -62,11 +61,9 @@ const Dashboard = () => {
   const [activeTables, setActiveTables] = useState<ActiveTable[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Fetch data on mount
   useEffect(() => {
     const fetchData = async () => {
       try {
-        // Fetch orders
         const { data: ordersData, error: ordersError } = await supabase
           .from('orders')
           .select('*')
@@ -76,7 +73,6 @@ const Dashboard = () => {
           throw new Error(`Failed to fetch orders: ${ordersError.message}`);
         }
         
-        // Fetch active tables
         const { data: tablesData, error: tablesError } = await supabase
           .from('active_tables')
           .select('*')
@@ -86,7 +82,6 @@ const Dashboard = () => {
           throw new Error(`Failed to fetch active tables: ${tablesError.message}`);
         }
         
-        // Type cast the data to ensure it conforms to our interfaces
         setOrders((ordersData as Order[]) || []);
         setActiveTables((tablesData as ActiveTable[]) || []);
         setLoading(false);
@@ -100,9 +95,7 @@ const Dashboard = () => {
     fetchData();
   }, []);
   
-  // Set up real-time subscriptions
   useEffect(() => {
-    // Subscribe to order changes
     const ordersChannel = supabase
       .channel('orders-changes')
       .on(
@@ -130,7 +123,6 @@ const Dashboard = () => {
       )
       .subscribe();
     
-    // Subscribe to active tables changes
     const tablesChannel = supabase
       .channel('tables-changes')
       .on(
@@ -156,11 +148,8 @@ const Dashboard = () => {
     };
   }, []);
   
-  // Automatically update order status based on time
   useEffect(() => {
-    // Auto-update function for progressing orders
     const autoUpdateOrderStatus = async () => {
-      // Find pending orders older than 2 minutes and update to preparing
       const pendingOrders = orders.filter(order => 
         order.status === 'pending' && 
         (new Date().getTime() - new Date(order.created_at).getTime()) > 120000
@@ -170,7 +159,6 @@ const Dashboard = () => {
         await handleUpdateStatus(order.id, 'preparing');
       }
       
-      // Find preparing orders older than 5 minutes and update to ready
       const preparingOrders = orders.filter(order => 
         order.status === 'preparing' && 
         (new Date().getTime() - new Date(order.created_at).getTime()) > 300000
@@ -181,7 +169,6 @@ const Dashboard = () => {
       }
     };
     
-    // Run auto-update every minute
     const interval = setInterval(autoUpdateOrderStatus, 60000);
     
     return () => clearInterval(interval);
@@ -198,14 +185,12 @@ const Dashboard = () => {
         throw new Error(`Failed to update order status: ${error.message}`);
       }
       
-      // Update UI immediately (will be overwritten by real-time update)
       setOrders(prevOrders =>
         prevOrders.map(order =>
           order.id === orderId ? { ...order, status: newStatus } : order
         )
       );
       
-      // If order is completed, mark table as available
       if (newStatus === 'completed') {
         const order = orders.find(o => o.id === orderId);
         if (order) {
@@ -238,7 +223,6 @@ const Dashboard = () => {
     }
   };
   
-  // Calculate metrics for the dashboard
   const totalOrders = orders.length;
   const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total), 0);
   const averagePreparationTime = orders.length > 0 ? 
@@ -246,11 +230,9 @@ const Dashboard = () => {
       orders.reduce((sum, order) => sum + order.estimated_time, 0) / Math.max(1, totalOrders)
     ) : 0;
   
-  // Count active tables
   const activatedTables = activeTables.filter(table => table.status === 'occupied').length;
   const totalTables = activeTables.length;
   
-  // Most popular items (top 3)
   const popularItems = menuItems
     .filter(item => item.popular)
     .slice(0, 3);
@@ -375,13 +357,12 @@ const Dashboard = () => {
                         <TableHead>Status</TableHead>
                         <TableHead>Time</TableHead>
                         <TableHead>Amount</TableHead>
-                        <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {orders.length === 0 ? (
                         <TableRow>
-                          <TableCell colSpan={6} className="text-center py-4">
+                          <TableCell colSpan={5} className="text-center py-4">
                             No orders available
                           </TableCell>
                         </TableRow>
@@ -398,40 +379,6 @@ const Dashboard = () => {
                               </div>
                             </TableCell>
                             <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
-                            <TableCell>
-                              <div className="flex gap-2">
-                                {order.status === 'pending' && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleUpdateStatus(order.id, 'preparing')}
-                                  >
-                                    <ChefHat className="h-3 w-3 mr-1" />
-                                    Start
-                                  </Button>
-                                )}
-                                {order.status === 'preparing' && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleUpdateStatus(order.id, 'ready')}
-                                  >
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Ready
-                                  </Button>
-                                )}
-                                {order.status === 'ready' && (
-                                  <Button 
-                                    size="sm" 
-                                    variant="outline"
-                                    onClick={() => handleUpdateStatus(order.id, 'completed')}
-                                  >
-                                    <Check className="h-3 w-3 mr-1" />
-                                    Complete
-                                  </Button>
-                                )}
-                              </div>
-                            </TableCell>
                           </TableRow>
                         ))
                       )}
@@ -451,13 +398,12 @@ const Dashboard = () => {
                           <TableHead>Status</TableHead>
                           <TableHead>Time</TableHead>
                           <TableHead>Amount</TableHead>
-                          <TableHead>Actions</TableHead>
                         </TableRow>
                       </TableHeader>
                       <TableBody>
                         {orders.filter(order => order.status === statusFilter).length === 0 ? (
                           <TableRow>
-                            <TableCell colSpan={6} className="text-center py-4">
+                            <TableCell colSpan={5} className="text-center py-4">
                               No {statusFilter} orders
                             </TableCell>
                           </TableRow>
@@ -476,40 +422,6 @@ const Dashboard = () => {
                                   </div>
                                 </TableCell>
                                 <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
-                                <TableCell>
-                                  <div className="flex gap-2">
-                                    {order.status === 'pending' && (
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={() => handleUpdateStatus(order.id, 'preparing')}
-                                      >
-                                        <ChefHat className="h-3 w-3 mr-1" />
-                                        Start
-                                      </Button>
-                                    )}
-                                    {order.status === 'preparing' && (
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={() => handleUpdateStatus(order.id, 'ready')}
-                                      >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Ready
-                                      </Button>
-                                    )}
-                                    {order.status === 'ready' && (
-                                      <Button 
-                                        size="sm" 
-                                        variant="outline"
-                                        onClick={() => handleUpdateStatus(order.id, 'completed')}
-                                      >
-                                        <Check className="h-3 w-3 mr-1" />
-                                        Complete
-                                      </Button>
-                                    )}
-                                  </div>
-                                </TableCell>
                               </TableRow>
                             ))
                         )}
