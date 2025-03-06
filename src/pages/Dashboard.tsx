@@ -54,6 +54,7 @@ interface ActiveTable {
   id: number;
   table_number: number;
   status: 'available' | 'occupied';
+  updated_at: string;
 }
 
 const Dashboard = () => {
@@ -85,8 +86,9 @@ const Dashboard = () => {
           throw new Error(`Failed to fetch active tables: ${tablesError.message}`);
         }
         
-        setOrders(ordersData || []);
-        setActiveTables(tablesData || []);
+        // Type cast the data to ensure it conforms to our interfaces
+        setOrders((ordersData as Order[]) || []);
+        setActiveTables((tablesData as ActiveTable[]) || []);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -112,11 +114,11 @@ const Dashboard = () => {
         },
         (payload) => {
           if (payload.eventType === 'INSERT') {
-            setOrders(prev => [payload.new as Order, ...prev]);
+            setOrders(prev => [(payload.new as Order), ...prev]);
           } else if (payload.eventType === 'UPDATE') {
             setOrders(prev => 
               prev.map(order => 
-                order.id === payload.new.id ? payload.new as Order : order
+                order.id === payload.new.id ? (payload.new as Order) : order
               )
             );
           } else if (payload.eventType === 'DELETE') {
@@ -141,7 +143,7 @@ const Dashboard = () => {
         (payload) => {
           setActiveTables(prev => 
             prev.map(table => 
-              table.id === payload.new.id ? payload.new as ActiveTable : table
+              table.id === payload.new.id ? (payload.new as ActiveTable) : table
             )
           );
         }
@@ -153,6 +155,37 @@ const Dashboard = () => {
       supabase.removeChannel(tablesChannel);
     };
   }, []);
+  
+  // Automatically update order status based on time
+  useEffect(() => {
+    // Auto-update function for progressing orders
+    const autoUpdateOrderStatus = async () => {
+      // Find pending orders older than 2 minutes and update to preparing
+      const pendingOrders = orders.filter(order => 
+        order.status === 'pending' && 
+        (new Date().getTime() - new Date(order.created_at).getTime()) > 120000
+      );
+      
+      for (const order of pendingOrders) {
+        await handleUpdateStatus(order.id, 'preparing');
+      }
+      
+      // Find preparing orders older than 5 minutes and update to ready
+      const preparingOrders = orders.filter(order => 
+        order.status === 'preparing' && 
+        (new Date().getTime() - new Date(order.created_at).getTime()) > 300000
+      );
+      
+      for (const order of preparingOrders) {
+        await handleUpdateStatus(order.id, 'ready');
+      }
+    };
+    
+    // Run auto-update every minute
+    const interval = setInterval(autoUpdateOrderStatus, 60000);
+    
+    return () => clearInterval(interval);
+  }, [orders]);
   
   const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
     try {

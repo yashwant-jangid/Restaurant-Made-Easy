@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { Check, Clock, ChefHat, Bell } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,23 +19,23 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
   const [kitchenLoad, setKitchenLoad] = useState('medium'); // 'low', 'medium', 'high'
   const [loading, setLoading] = useState(true);
   const [orderNumber, setOrderNumber] = useState<string>('');
+  const [orderId2, setOrderId2] = useState<string | undefined>(orderId);
   const navigate = useNavigate();
   
   // Fetch latest order if no orderId provided
   useEffect(() => {
     const fetchLatestOrder = async () => {
-      if (!orderId) {
-        try {
+      try {
+        // If we have an orderId, fetch that specific order
+        if (orderId) {
           const { data, error } = await supabase
             .from('orders')
-            .select('id, order_number, status, estimated_time')
-            .order('created_at', { ascending: false })
-            .limit(1)
+            .select('id, order_number, status, estimated_time, created_at')
+            .eq('id', orderId)
             .single();
           
           if (error) {
-            console.error('Error fetching latest order:', error);
-            simulateKitchenStatus();
+            console.error('Error fetching order:', error);
             setLoading(false);
             return;
           }
@@ -45,32 +44,66 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
             setStatus(data.status as OrderStatus);
             setTimeRemaining(data.estimated_time);
             setOrderNumber(data.order_number);
-            
-            // Set initial progress based on status
-            if (data.status === 'pending') {
-              setProgress(10);
-            } else if (data.status === 'preparing') {
-              setProgress(40);
-            } else if (data.status === 'ready' || data.status === 'completed') {
-              setProgress(100);
-              setTimeRemaining(0);
-            }
+            setOrderId2(data.id);
+            updateProgressBasedOnStatus(data.status as OrderStatus);
+          }
+        } else {
+          // Otherwise fetch the latest order
+          const { data, error } = await supabase
+            .from('orders')
+            .select('id, order_number, status, estimated_time, created_at')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching latest order:', error);
+            setLoading(false);
+            return;
           }
           
-          setLoading(false);
-        } catch (error) {
-          console.error('Error fetching latest order:', error);
-          simulateKitchenStatus();
-          setLoading(false);
+          if (data) {
+            setStatus(data.status as OrderStatus);
+            setTimeRemaining(data.estimated_time);
+            setOrderNumber(data.order_number);
+            setOrderId2(data.id);
+            updateProgressBasedOnStatus(data.status as OrderStatus);
+          }
         }
+        
+        // Determine kitchen load randomly for simulation
+        const loads = ['low', 'medium', 'high'];
+        const randomLoad = loads[Math.floor(Math.random() * loads.length)];
+        setKitchenLoad(randomLoad);
+        
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching order:', error);
+        setLoading(false);
       }
     };
     
     fetchLatestOrder();
   }, [orderId]);
   
+  const updateProgressBasedOnStatus = (orderStatus: OrderStatus) => {
+    if (orderStatus === 'pending') {
+      setProgress(10);
+    } else if (orderStatus === 'preparing') {
+      setProgress(40);
+    } else if (orderStatus === 'ready') {
+      setProgress(100);
+      setTimeRemaining(0);
+    } else if (orderStatus === 'completed') {
+      setProgress(100);
+      setTimeRemaining(0);
+    }
+  };
+  
   // Subscribe to real-time updates for the order status
   useEffect(() => {
+    if (!orderId2) return;
+    
     // Set up real-time subscription for orders
     const channel = supabase
       .channel('public:orders')
@@ -79,14 +112,13 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
         {
           event: 'UPDATE',
           schema: 'public',
-          table: 'orders'
+          table: 'orders',
+          filter: `id=eq.${orderId2}`
         },
         (payload) => {
-          if (orderId && payload.new.id === orderId) {
-            updateOrderStatus(payload.new.status, payload.new.estimated_time);
-          } else if (!orderId && payload.new.order_number === orderNumber) {
-            updateOrderStatus(payload.new.status, payload.new.estimated_time);
-          }
+          console.log('Order update received:', payload);
+          const newStatus = payload.new.status as OrderStatus;
+          updateOrderStatus(newStatus, payload.new.estimated_time);
         }
       )
       .subscribe();
@@ -94,66 +126,18 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [orderId, orderNumber]);
+  }, [orderId2]);
   
   // Function to update order status from real-time events
-  const updateOrderStatus = (newStatus: string, estimatedTime: number) => {
-    setStatus(newStatus as OrderStatus);
+  const updateOrderStatus = (newStatus: OrderStatus, estimatedTime: number) => {
+    setStatus(newStatus);
     setTimeRemaining(estimatedTime);
-    
-    if (newStatus === 'pending') {
-      setProgress(10);
-    } else if (newStatus === 'preparing') {
-      setProgress(40);
-    } else if (newStatus === 'ready' || newStatus === 'completed') {
-      setProgress(100);
-      setTimeRemaining(0);
-    }
-  };
-  
-  // Simulate order progression for demo purposes
-  const simulateKitchenStatus = () => {
-    // Randomly determine current kitchen load
-    const loads = ['low', 'medium', 'high'];
-    const randomLoad = loads[Math.floor(Math.random() * loads.length)];
-    setKitchenLoad(randomLoad);
-    
-    // Adjust preparation times based on kitchen load - make them more realistic
-    let pendingTime = 30000; // 30 seconds in ms
-    let preparingTime = 45000; // 45 seconds in ms
-    
-    if (randomLoad === 'high') {
-      pendingTime = 40000; // 40 seconds
-      preparingTime = 60000; // 60 seconds
-      setTimeRemaining(prev => Math.min(25, prev + 5));
-    } else if (randomLoad === 'low') {
-      pendingTime = 25000; // 25 seconds
-      preparingTime = 35000; // 35 seconds
-      setTimeRemaining(prev => Math.max(10, prev - 3));
-    }
-    
-    if (status === 'pending') {
-      const timer = setTimeout(() => {
-        setStatus('preparing');
-        setProgress(40);
-        setTimeRemaining(prev => Math.max(5, prev - 5));
-      }, pendingTime);
-      
-      return () => clearTimeout(timer);
-    } else if (status === 'preparing') {
-      const timer = setTimeout(() => {
-        setStatus('ready');
-        setProgress(100);
-        setTimeRemaining(0);
-      }, preparingTime);
-      
-      return () => clearTimeout(timer);
-    }
+    updateProgressBasedOnStatus(newStatus);
   };
   
   // Update progress based on time remaining
   useEffect(() => {
-    if (timeRemaining > 0) {
+    if (timeRemaining > 0 && status !== 'ready' && status !== 'completed') {
       const timer = setTimeout(() => {
         setTimeRemaining(prev => prev - 1);
         
@@ -162,12 +146,12 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
           // Move from 10% to 40% during pending status
           const targetProgress = 40;
           const currentSegmentProgress = ((10 - timeRemaining) / 10) * (targetProgress - 10);
-          setProgress(10 + currentSegmentProgress);
+          setProgress(Math.min(40, 10 + currentSegmentProgress));
         } else if (status === 'preparing') {
           // Move from 40% to 100% during preparing status
           const targetProgress = 100;
           const currentSegmentProgress = ((timeRemaining > 0 ? 10 - timeRemaining : 10) / 10) * (targetProgress - 40);
-          setProgress(40 + currentSegmentProgress);
+          setProgress(Math.min(100, 40 + currentSegmentProgress));
         }
       }, 1000);
       
@@ -177,22 +161,16 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
   
   const handleComplete = async () => {
     try {
-      // Update order status to completed in Supabase
-      let updateQuery;
-      
-      if (orderId) {
-        updateQuery = supabase
-          .from('orders')
-          .update({ status: 'completed' })
-          .eq('id', orderId);
-      } else {
-        updateQuery = supabase
-          .from('orders')
-          .update({ status: 'completed' })
-          .eq('order_number', orderNumber);
+      if (!orderId2) {
+        toast.error('No order ID available');
+        return;
       }
       
-      const { error } = await updateQuery;
+      // Update order status to completed in Supabase
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: 'completed' })
+        .eq('id', orderId2);
       
       if (error) {
         throw new Error(`Failed to update order status: ${error.message}`);
@@ -230,7 +208,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
   return (
     <div className="w-full max-w-md mx-auto animate-fade-in">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-medium mb-2">Order #{orderNumber || orderId?.substring(0, 4)}</h2>
+        <h2 className="text-2xl font-medium mb-2">Order #{orderNumber || orderId2?.substring(0, 4)}</h2>
         <p className="text-muted-foreground">
           Thanks for your order! We'll let you know when it's ready.
         </p>
