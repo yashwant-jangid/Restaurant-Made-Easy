@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect } from 'react';
-import { Order, menuItems } from '@/lib/data';
+import { menuItems } from '@/lib/data';
 import {
   Card,
   CardContent,
@@ -38,40 +38,156 @@ import {
   Star
 } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from '@/integrations/supabase/client';
+
+interface Order {
+  id: string;
+  order_number: string;
+  table_number: number;
+  status: 'pending' | 'preparing' | 'ready' | 'completed';
+  total: number;
+  estimated_time: number;
+  created_at: string;
+}
+
+interface ActiveTable {
+  id: number;
+  table_number: number;
+  status: 'available' | 'occupied';
+}
 
 const Dashboard = () => {
-  const [activeOrders, setActiveOrders] = useState<Order[]>([]);
-  const [refreshCounter, setRefreshCounter] = useState(0);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [activeTables, setActiveTables] = useState<ActiveTable[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // Poll for updates every 5 seconds
+  // Fetch data on mount
   useEffect(() => {
-    const intervalId = setInterval(() => {
-      setRefreshCounter(prev => prev + 1);
-    }, 5000);
+    const fetchData = async () => {
+      try {
+        // Fetch orders
+        const { data: ordersData, error: ordersError } = await supabase
+          .from('orders')
+          .select('*')
+          .order('created_at', { ascending: false });
+        
+        if (ordersError) {
+          throw new Error(`Failed to fetch orders: ${ordersError.message}`);
+        }
+        
+        // Fetch active tables
+        const { data: tablesData, error: tablesError } = await supabase
+          .from('active_tables')
+          .select('*')
+          .order('table_number', { ascending: true });
+        
+        if (tablesError) {
+          throw new Error(`Failed to fetch active tables: ${tablesError.message}`);
+        }
+        
+        setOrders(ordersData || []);
+        setActiveTables(tablesData || []);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching data:', error);
+        toast.error('Failed to load dashboard data');
+        setLoading(false);
+      }
+    };
     
-    return () => clearInterval(intervalId);
+    fetchData();
   }, []);
   
-  // Load orders from localStorage whenever refreshCounter changes
+  // Set up real-time subscriptions
   useEffect(() => {
-    const storedOrders = localStorage.getItem('restaurantOrders');
-    if (storedOrders) {
-      setActiveOrders(JSON.parse(storedOrders));
-    }
-  }, [refreshCounter]);
-  
-  // Save orders to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('restaurantOrders', JSON.stringify(activeOrders));
-  }, [activeOrders]);
-  
-  const handleUpdateStatus = (orderId: string, newStatus: Order['status']) => {
-    setActiveOrders(prevOrders =>
-      prevOrders.map(order =>
-        order.id === orderId ? { ...order, status: newStatus } : order
+    // Subscribe to order changes
+    const ordersChannel = supabase
+      .channel('orders-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setOrders(prev => [payload.new as Order, ...prev]);
+          } else if (payload.eventType === 'UPDATE') {
+            setOrders(prev => 
+              prev.map(order => 
+                order.id === payload.new.id ? payload.new as Order : order
+              )
+            );
+          } else if (payload.eventType === 'DELETE') {
+            setOrders(prev => 
+              prev.filter(order => order.id !== payload.old.id)
+            );
+          }
+        }
       )
-    );
-    toast.success(`Order #${orderId} status updated to ${newStatus}`);
+      .subscribe();
+    
+    // Subscribe to active tables changes
+    const tablesChannel = supabase
+      .channel('tables-changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'active_tables'
+        },
+        (payload) => {
+          setActiveTables(prev => 
+            prev.map(table => 
+              table.id === payload.new.id ? payload.new as ActiveTable : table
+            )
+          );
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(ordersChannel);
+      supabase.removeChannel(tablesChannel);
+    };
+  }, []);
+  
+  const handleUpdateStatus = async (orderId: string, newStatus: Order['status']) => {
+    try {
+      const { error } = await supabase
+        .from('orders')
+        .update({ status: newStatus })
+        .eq('id', orderId);
+      
+      if (error) {
+        throw new Error(`Failed to update order status: ${error.message}`);
+      }
+      
+      // Update UI immediately (will be overwritten by real-time update)
+      setOrders(prevOrders =>
+        prevOrders.map(order =>
+          order.id === orderId ? { ...order, status: newStatus } : order
+        )
+      );
+      
+      // If order is completed, mark table as available
+      if (newStatus === 'completed') {
+        const order = orders.find(o => o.id === orderId);
+        if (order) {
+          await supabase
+            .from('active_tables')
+            .update({ status: 'available' })
+            .eq('table_number', order.table_number);
+        }
+      }
+      
+      toast.success(`Order #${orders.find(o => o.id === orderId)?.order_number} status updated to ${newStatus}`);
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      toast.error('Failed to update order status');
+    }
   };
   
   const getStatusBadge = (status: Order['status']) => {
@@ -90,17 +206,32 @@ const Dashboard = () => {
   };
   
   // Calculate metrics for the dashboard
-  const totalOrders = activeOrders.length;
-  const totalRevenue = activeOrders.reduce((sum, order) => sum + order.total, 0);
-  const averagePreparationTime = activeOrders.length > 0 ? 
+  const totalOrders = orders.length;
+  const totalRevenue = orders.reduce((sum, order) => sum + Number(order.total), 0);
+  const averagePreparationTime = orders.length > 0 ? 
     Math.round(
-      activeOrders.reduce((sum, order) => sum + order.estimatedTime, 0) / Math.max(1, totalOrders)
+      orders.reduce((sum, order) => sum + order.estimated_time, 0) / Math.max(1, totalOrders)
     ) : 0;
+  
+  // Count active tables
+  const activatedTables = activeTables.filter(table => table.status === 'occupied').length;
+  const totalTables = activeTables.length;
   
   // Most popular items (top 3)
   const popularItems = menuItems
     .filter(item => item.popular)
     .slice(0, 3);
+  
+  if (loading) {
+    return (
+      <div className="container py-8 flex justify-center items-center h-screen">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p>Loading dashboard data...</p>
+        </div>
+      </div>
+    );
+  }
   
   return (
     <div className="container py-8">
@@ -168,14 +299,14 @@ const Dashboard = () => {
           <CardHeader className="pb-2">
             <CardDescription className="text-teal-600 font-medium">Active Tables</CardDescription>
             <CardTitle className="text-4xl flex items-end gap-2 font-bold">
-              8
-              <span className="text-sm text-muted-foreground font-normal">/ 20 total</span>
+              {activatedTables}
+              <span className="text-sm text-muted-foreground font-normal">/ {totalTables} total</span>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-muted-foreground text-sm flex items-center">
               <Users className="h-4 w-4 mr-1 text-green-500" />
-              <span>40% capacity</span>
+              <span>{Math.round((activatedTables / totalTables) * 100)}% capacity</span>
             </div>
           </CardContent>
         </Card>
@@ -215,25 +346,25 @@ const Dashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {activeOrders.length === 0 ? (
+                      {orders.length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="text-center py-4">
                             No orders available
                           </TableCell>
                         </TableRow>
                       ) : (
-                        activeOrders.map(order => (
+                        orders.map(order => (
                           <TableRow key={order.id}>
-                            <TableCell className="font-medium">#{order.id}</TableCell>
-                            <TableCell>{order.tableNumber}</TableCell>
+                            <TableCell className="font-medium">#{order.order_number}</TableCell>
+                            <TableCell>{order.table_number}</TableCell>
                             <TableCell>{getStatusBadge(order.status)}</TableCell>
                             <TableCell>
                               <div className="flex items-center gap-1">
                                 <Clock className="h-3 w-3 text-muted-foreground" />
-                                <span>{order.estimatedTime} min</span>
+                                <span>{order.estimated_time} min</span>
                               </div>
                             </TableCell>
-                            <TableCell>${order.total.toFixed(2)}</TableCell>
+                            <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
                             <TableCell>
                               <div className="flex gap-2">
                                 {order.status === 'pending' && (
@@ -276,8 +407,8 @@ const Dashboard = () => {
                 </div>
               </TabsContent>
               
-              {['pending', 'preparing', 'ready'].map(status => (
-                <TabsContent key={status} value={status} className="mt-0">
+              {['pending', 'preparing', 'ready'].map(statusFilter => (
+                <TabsContent key={statusFilter} value={statusFilter} className="mt-0">
                   <div className="border rounded-md">
                     <Table>
                       <TableHeader>
@@ -291,27 +422,27 @@ const Dashboard = () => {
                         </TableRow>
                       </TableHeader>
                       <TableBody>
-                        {activeOrders.filter(order => order.status === status).length === 0 ? (
+                        {orders.filter(order => order.status === statusFilter).length === 0 ? (
                           <TableRow>
                             <TableCell colSpan={6} className="text-center py-4">
-                              No {status} orders
+                              No {statusFilter} orders
                             </TableCell>
                           </TableRow>
                         ) : (
-                          activeOrders
-                            .filter(order => order.status === status)
+                          orders
+                            .filter(order => order.status === statusFilter)
                             .map(order => (
                               <TableRow key={order.id}>
-                                <TableCell className="font-medium">#{order.id}</TableCell>
-                                <TableCell>{order.tableNumber}</TableCell>
+                                <TableCell className="font-medium">#{order.order_number}</TableCell>
+                                <TableCell>{order.table_number}</TableCell>
                                 <TableCell>{getStatusBadge(order.status)}</TableCell>
                                 <TableCell>
                                   <div className="flex items-center gap-1">
                                     <Clock className="h-3 w-3 text-muted-foreground" />
-                                    <span>{order.estimatedTime} min</span>
+                                    <span>{order.estimated_time} min</span>
                                   </div>
                                 </TableCell>
-                                <TableCell>${order.total.toFixed(2)}</TableCell>
+                                <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
                                 <TableCell>
                                   <div className="flex gap-2">
                                     {order.status === 'pending' && (

@@ -5,9 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-
-// API URL for our Azure Functions backend
-const API_URL = "https://your-azure-function-app.azurewebsites.net/api";
+import { supabase } from '@/integrations/supabase/client';
 
 interface OrderStatusProps {
   orderId?: string;
@@ -15,60 +13,103 @@ interface OrderStatusProps {
 
 type OrderStatus = 'pending' | 'preparing' | 'ready' | 'completed';
 
-const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
+const OrderStatus: React.FC<OrderStatusProps> = ({ orderId }) => {
   const [status, setStatus] = useState<OrderStatus>('pending');
   const [progress, setProgress] = useState(10);
   const [timeRemaining, setTimeRemaining] = useState(15);
   const [kitchenLoad, setKitchenLoad] = useState('medium'); // 'low', 'medium', 'high'
   const [loading, setLoading] = useState(true);
+  const [orderNumber, setOrderNumber] = useState<string>('');
   const navigate = useNavigate();
   
-  // Fetch order status from API
+  // Fetch latest order if no orderId provided
   useEffect(() => {
-    const fetchOrderStatus = async () => {
-      try {
-        // First try to get from API
-        const response = await fetch(`${API_URL}/orders/${orderId}`);
-        
-        if (response.ok) {
-          const orderData = await response.json();
-          setStatus(orderData.status);
-          setTimeRemaining(orderData.estimatedTimeRemaining || 15);
-          setKitchenLoad(orderData.kitchenLoad || 'medium');
+    const fetchLatestOrder = async () => {
+      if (!orderId) {
+        try {
+          const { data, error } = await supabase
+            .from('orders')
+            .select('id, order_number, status, estimated_time')
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+          
+          if (error) {
+            console.error('Error fetching latest order:', error);
+            simulateKitchenStatus();
+            setLoading(false);
+            return;
+          }
+          
+          if (data) {
+            setStatus(data.status as OrderStatus);
+            setTimeRemaining(data.estimated_time);
+            setOrderNumber(data.order_number);
+            
+            // Set initial progress based on status
+            if (data.status === 'pending') {
+              setProgress(10);
+            } else if (data.status === 'preparing') {
+              setProgress(40);
+            } else if (data.status === 'ready' || data.status === 'completed') {
+              setProgress(100);
+              setTimeRemaining(0);
+            }
+          }
+          
           setLoading(false);
-        } else {
-          // Fallback to localStorage for demo
-          fallbackToLocalStorage();
+        } catch (error) {
+          console.error('Error fetching latest order:', error);
+          simulateKitchenStatus();
+          setLoading(false);
         }
-      } catch (error) {
-        console.error('Error fetching order status:', error);
-        // Fallback to localStorage for demo
-        fallbackToLocalStorage();
       }
     };
     
-    const fallbackToLocalStorage = () => {
-      // Get from localStorage as fallback
-      const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
-      const order = orders.find((o: any) => o.id === orderId);
-      
-      if (order) {
-        setStatus(order.status || 'pending');
-        setTimeRemaining(order.estimatedTime || 15);
-      } else {
-        // Use demo data
-        simulateKitchenStatus();
-      }
-      
-      setLoading(false);
-    };
-    
-    // Poll for updates every 5 seconds
-    fetchOrderStatus();
-    const interval = setInterval(fetchOrderStatus, 5000);
-    
-    return () => clearInterval(interval);
+    fetchLatestOrder();
   }, [orderId]);
+  
+  // Subscribe to real-time updates for the order status
+  useEffect(() => {
+    // Set up real-time subscription for orders
+    const channel = supabase
+      .channel('public:orders')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'orders'
+        },
+        (payload) => {
+          if (orderId && payload.new.id === orderId) {
+            updateOrderStatus(payload.new.status, payload.new.estimated_time);
+          } else if (!orderId && payload.new.order_number === orderNumber) {
+            updateOrderStatus(payload.new.status, payload.new.estimated_time);
+          }
+        }
+      )
+      .subscribe();
+    
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderId, orderNumber]);
+  
+  // Function to update order status from real-time events
+  const updateOrderStatus = (newStatus: string, estimatedTime: number) => {
+    setStatus(newStatus as OrderStatus);
+    setTimeRemaining(estimatedTime);
+    
+    if (newStatus === 'pending') {
+      setProgress(10);
+    } else if (newStatus === 'preparing') {
+      setProgress(40);
+    } else if (newStatus === 'ready' || newStatus === 'completed') {
+      setProgress(100);
+      setTimeRemaining(0);
+    }
+  };
   
   // Simulate order progression for demo purposes
   const simulateKitchenStatus = () => {
@@ -136,37 +177,35 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
   
   const handleComplete = async () => {
     try {
-      // Update order status to completed in API
-      const response = await fetch(`${API_URL}/orders/${orderId}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ status: 'completed' }),
-      });
+      // Update order status to completed in Supabase
+      let updateQuery;
       
-      if (!response.ok) {
-        // Fallback for demo: update in localStorage
-        const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
-        const updatedOrders = orders.map((order: any) => 
-          order.id === orderId ? { ...order, status: 'completed' } : order
-        );
-        localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+      if (orderId) {
+        updateQuery = supabase
+          .from('orders')
+          .update({ status: 'completed' })
+          .eq('id', orderId);
+      } else {
+        updateQuery = supabase
+          .from('orders')
+          .update({ status: 'completed' })
+          .eq('order_number', orderNumber);
       }
+      
+      const { error } = await updateQuery;
+      
+      if (error) {
+        throw new Error(`Failed to update order status: ${error.message}`);
+      }
+      
+      setStatus('completed');
+      setTimeout(() => {
+        navigate('/feedback');
+      }, 2000);
     } catch (error) {
       console.error('Error updating order status:', error);
-      // Fallback for demo: update in localStorage
-      const orders = JSON.parse(localStorage.getItem('restaurantOrders') || '[]');
-      const updatedOrders = orders.map((order: any) => 
-        order.id === orderId ? { ...order, status: 'completed' } : order
-      );
-      localStorage.setItem('restaurantOrders', JSON.stringify(updatedOrders));
+      toast.error('Failed to update order. Please try again.');
     }
-    
-    setStatus('completed');
-    setTimeout(() => {
-      navigate('/feedback');
-    }, 2000);
   };
   
   const getKitchenLoadMessage = () => {
@@ -191,7 +230,7 @@ const OrderStatus: React.FC<OrderStatusProps> = ({ orderId = "1234" }) => {
   return (
     <div className="w-full max-w-md mx-auto animate-fade-in">
       <div className="text-center mb-6">
-        <h2 className="text-2xl font-medium mb-2">Order #{orderId}</h2>
+        <h2 className="text-2xl font-medium mb-2">Order #{orderNumber || orderId?.substring(0, 4)}</h2>
         <p className="text-muted-foreground">
           Thanks for your order! We'll let you know when it's ready.
         </p>

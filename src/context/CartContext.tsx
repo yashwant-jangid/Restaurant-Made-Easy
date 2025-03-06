@@ -1,7 +1,8 @@
 
-import React, { createContext, useContext, useReducer, ReactNode } from 'react';
+import React, { createContext, useContext, useReducer, ReactNode, useEffect } from 'react';
 import { CartItem, MenuItem, calculateEstimatedTime } from '@/lib/data';
 import { toast } from 'sonner';
+import { supabase } from '@/integrations/supabase/client';
 
 interface CartState {
   items: CartItem[];
@@ -100,6 +101,34 @@ const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [cart, dispatch] = useReducer(cartReducer, initialState);
+  
+  // Fetch available tables on mount
+  useEffect(() => {
+    const fetchAvailableTables = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('active_tables')
+          .select('table_number')
+          .eq('status', 'available')
+          .order('table_number', { ascending: true })
+          .limit(1)
+          .single();
+        
+        if (error) {
+          console.error('Error fetching available tables:', error);
+          return;
+        }
+        
+        if (data) {
+          dispatch({ type: 'SET_TABLE', payload: data.table_number });
+        }
+      } catch (error) {
+        console.error('Error fetching available tables:', error);
+      }
+    };
+    
+    fetchAvailableTables();
+  }, []);
 
   const addItem = (item: MenuItem) => {
     dispatch({ type: 'ADD_ITEM', payload: item });
@@ -118,8 +147,30 @@ export const CartProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     dispatch({ type: 'CLEAR_CART' });
   };
 
-  const setTableNumber = (table: number) => {
-    dispatch({ type: 'SET_TABLE', payload: table });
+  const setTableNumber = async (table: number) => {
+    try {
+      // Check if table is available
+      const { data, error } = await supabase
+        .from('active_tables')
+        .select('status')
+        .eq('table_number', table)
+        .single();
+      
+      if (error) {
+        console.error('Error checking table status:', error);
+        toast.error('Could not verify table availability');
+        return;
+      }
+      
+      if (data && data.status === 'occupied' && table !== cart.tableNumber) {
+        toast.error('This table is currently occupied');
+        return;
+      }
+      
+      dispatch({ type: 'SET_TABLE', payload: table });
+    } catch (error) {
+      console.error('Error setting table number:', error);
+    }
   };
 
   return (
