@@ -74,6 +74,8 @@ export type Database = {
           estimated_time: number
           id: string
           order_number: string
+          payment_details: Json | null
+          payment_method: string | null
           status: string
           table_number: number
           total: number
@@ -83,6 +85,8 @@ export type Database = {
           estimated_time: number
           id?: string
           order_number: string
+          payment_details?: Json | null
+          payment_method?: string | null
           status: string
           table_number: number
           total: number
@@ -92,6 +96,8 @@ export type Database = {
           estimated_time?: number
           id?: string
           order_number?: string
+          payment_details?: Json | null
+          payment_method?: string | null
           status?: string
           table_number?: number
           total?: number
