@@ -1,6 +1,6 @@
 
-import React from 'react';
-import { QrCode } from 'lucide-react';
+import React, { useState } from 'react';
+import { IndianRupee } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -11,6 +11,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useCart } from '@/context/CartContext';
 import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
@@ -22,13 +24,18 @@ interface PaymentQRProps {
 
 const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   const { cart } = useCart();
-  
-  // In a real app, this would be dynamically generated with the payment amount
-  // and merchant details from a payment gateway
-  const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi://pay?pa=example@upi&pn=RestaurantMadeEasy&am=${amount}&cu=INR&tn=FoodOrder`;
+  const [upiId, setUpiId] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
   
   const handlePaymentComplete = async () => {
     try {
+      if (!upiId.trim()) {
+        toast.error("Please enter a valid UPI ID");
+        return;
+      }
+      
+      setIsProcessing(true);
+      
       // Generate a random 4-digit order number
       const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
       
@@ -40,7 +47,9 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
           table_number: cart.tableNumber,
           status: 'pending',
           total: amount,
-          estimated_time: cart.estimatedTime
+          estimated_time: cart.estimatedTime,
+          payment_method: 'UPI',
+          payment_details: { upi_id: upiId }
         })
         .select('id')
         .single();
@@ -85,6 +94,8 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
     } catch (error) {
       console.error('Error saving order:', error);
       toast.error('Failed to save order. Please try again.');
+    } finally {
+      setIsProcessing(false);
     }
   };
   
@@ -92,33 +103,40 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
     <Dialog>
       <DialogTrigger asChild>
         <Button className="w-full h-12 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 transition-all font-medium">
-          <QrCode className="h-4 w-4 mr-2" />
-          Pay with UPI QR ₹{amount.toFixed(2)}
+          <IndianRupee className="h-4 w-4 mr-2" />
+          Pay with UPI ₹{amount.toFixed(2)}
         </Button>
       </DialogTrigger>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle className="text-xl font-bold">Scan QR to Pay</DialogTitle>
+          <DialogTitle className="text-xl font-bold">Pay with UPI</DialogTitle>
           <DialogDescription>
-            Open your UPI app and scan this QR code to complete payment of ₹{amount.toFixed(2)}
+            Enter your UPI ID to complete payment of ₹{amount.toFixed(2)}
           </DialogDescription>
         </DialogHeader>
-        <div className="flex items-center justify-center p-4">
-          <div className="border rounded-lg p-2 bg-white shadow-md">
-            <img src={qrImageUrl} alt="Payment QR" className="w-64 h-64" />
+        <div className="space-y-4 py-4">
+          <div className="space-y-2">
+            <Label htmlFor="upi-id">UPI ID</Label>
+            <Input 
+              id="upi-id" 
+              placeholder="yourname@upi" 
+              value={upiId} 
+              onChange={(e) => setUpiId(e.target.value)}
+              className="w-full"
+            />
           </div>
-        </div>
-        <div className="text-center text-sm text-muted-foreground">
-          <p>UPI ID: example@upi</p>
-          <p>Merchant: Restaurant Made Easy</p>
+          <div className="text-sm text-muted-foreground">
+            <p>Examples: yourname@okaxis, yourname@okicici, yourname@ybl</p>
+          </div>
         </div>
         <DialogFooter>
           <Button 
             variant="default"
             onClick={handlePaymentComplete}
+            disabled={isProcessing}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
           >
-            I've Completed Payment
+            {isProcessing ? 'Processing...' : 'Complete Payment'}
           </Button>
         </DialogFooter>
       </DialogContent>
