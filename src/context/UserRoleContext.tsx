@@ -8,18 +8,20 @@ interface UserRoleContextType {
   role: UserRole;
   isAdmin: boolean;
   setRole: (role: UserRole) => void;
+  logout: () => void;
 }
 
 // Create the context with default values
 const UserRoleContext = createContext<UserRoleContextType>({
   role: 'customer',
   isAdmin: false,
-  setRole: () => {}
+  setRole: () => {},
+  logout: () => {}
 });
 
 export const UserRoleProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   // Initial role state (from localStorage if available)
-  const [role, setRole] = useState<UserRole>(() => {
+  const [role, setRoleState] = useState<UserRole>(() => {
     const savedRole = localStorage.getItem('userRole');
     return (savedRole === 'admin' ? 'admin' : 'customer') as UserRole;
   });
@@ -31,12 +33,25 @@ export const UserRoleProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   // Calculate derived state
   const isAdmin = role === 'admin';
+  
+  // Set role with validation
+  const setRole = (newRole: UserRole) => {
+    if (newRole === 'admin' || newRole === 'customer') {
+      setRoleState(newRole);
+    }
+  };
+  
+  // Logout function - resets to customer role
+  const logout = () => {
+    setRoleState('customer');
+  };
 
   return (
     <UserRoleContext.Provider value={{ 
       role, 
       isAdmin,
-      setRole 
+      setRole,
+      logout
     }}>
       {children}
     </UserRoleContext.Provider>

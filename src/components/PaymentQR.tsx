@@ -75,15 +75,15 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       console.log("Attempting to save order:", orderData);
       
       // Save to Supabase with error handling
-      const { data, error } = await supabase
+      const { data, error: insertError } = await supabase
         .from('orders')
         .insert(orderData)
         .select('id')
         .single();
       
-      if (error) {
-        console.error("Error saving order:", error);
-        throw error;
+      if (insertError) {
+        console.error("Error saving order:", insertError);
+        throw insertError;
       }
       
       if (!data?.id) {

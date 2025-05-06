@@ -36,15 +36,14 @@ import {
   Sparkles,
   Star,
   User,
-  ShoppingCart,
-  X,
-  ArrowRight
+  ShoppingCart
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from '@/integrations/supabase/client';
 import { useUserRole } from '@/context/UserRoleContext';
 import RoleSwitcher from '@/components/RoleSwitcher';
 import { useNavigate } from 'react-router-dom';
+import OrdersDisplay from '@/components/OrdersDisplay';
 
 interface Order {
   id: string;
@@ -376,47 +375,7 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              {myOrders.length === 0 ? (
-                <div className="p-6 text-center">
-                  <div className="mx-auto w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-3">
-                    <ShoppingCart className="h-8 w-8 text-slate-400" />
-                  </div>
-                  <h3 className="text-lg font-medium mb-2">No active orders</h3>
-                  <p className="text-muted-foreground mb-4">You don't have any active orders at the moment.</p>
-                  <Button onClick={() => navigate('/menu')}>
-                    Order Now <ArrowRight className="ml-2 h-4 w-4" />
-                  </Button>
-                </div>
-              ) : (
-                <div className="divide-y">
-                  {myOrders.map(order => (
-                    <div key={order.id} className="p-4 hover:bg-slate-50 transition-colors">
-                      <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h4 className="font-medium">Order #{order.order_number}</h4>
-                          <div className="text-sm text-muted-foreground">
-                            Table {order.table_number} • {new Date(order.created_at).toLocaleDateString()}
-                          </div>
-                        </div>
-                        <div>
-                          {getStatusBadge(order.status)}
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center mt-3">
-                        <div className="flex items-center text-sm">
-                          <Clock className="h-4 w-4 mr-1 text-muted-foreground" />
-                          <span>{order.estimated_time} min</span>
-                        </div>
-                        <div>
-                          <Button variant="outline" size="sm" onClick={() => navigate(`/status?id=${order.id}`)}>
-                            Track Order
-                          </Button>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <OrdersDisplay orders={myOrders} isAdmin={false} />
             </CardContent>
           </Card>
         </div>
@@ -435,98 +394,7 @@ const Dashboard = () => {
               </CardDescription>
             </CardHeader>
             <CardContent className="p-0">
-              <Tabs defaultValue="all" className="w-full">
-                <TabsList className="grid grid-cols-4 p-4">
-                  <TabsTrigger value="all" className="font-medium">All</TabsTrigger>
-                  <TabsTrigger value="pending" className="font-medium">Pending</TabsTrigger>
-                  <TabsTrigger value="preparing" className="font-medium">Preparing</TabsTrigger>
-                  <TabsTrigger value="ready" className="font-medium">Ready</TabsTrigger>
-                </TabsList>
-                
-                <TabsContent value="all" className="mt-0">
-                  <div className="border rounded-md">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Order ID</TableHead>
-                          <TableHead>Table</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Time</TableHead>
-                          <TableHead>Amount</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {orders.length === 0 ? (
-                          <TableRow>
-                            <TableCell colSpan={5} className="text-center py-4">
-                              No orders available
-                            </TableCell>
-                          </TableRow>
-                        ) : (
-                          orders.map(order => (
-                            <TableRow key={order.id}>
-                              <TableCell className="font-medium">#{order.order_number}</TableCell>
-                              <TableCell>{order.table_number}</TableCell>
-                              <TableCell>{getStatusBadge(order.status)}</TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Clock className="h-3 w-3 text-muted-foreground" />
-                                  <span>{order.estimated_time} min</span>
-                                </div>
-                              </TableCell>
-                              <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
-                            </TableRow>
-                          ))
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                </TabsContent>
-                
-                {['pending', 'preparing', 'ready'].map(statusFilter => (
-                  <TabsContent key={statusFilter} value={statusFilter} className="mt-0">
-                    <div className="border rounded-md">
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead>Order ID</TableHead>
-                            <TableHead>Table</TableHead>
-                            <TableHead>Status</TableHead>
-                            <TableHead>Time</TableHead>
-                            <TableHead>Amount</TableHead>
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {orders.filter(order => order.status === statusFilter).length === 0 ? (
-                            <TableRow>
-                              <TableCell colSpan={5} className="text-center py-4">
-                                No {statusFilter} orders
-                              </TableCell>
-                            </TableRow>
-                          ) : (
-                            orders
-                              .filter(order => order.status === statusFilter)
-                              .map(order => (
-                                <TableRow key={order.id}>
-                                  <TableCell className="font-medium">#{order.order_number}</TableCell>
-                                  <TableCell>{order.table_number}</TableCell>
-                                  <TableCell>{getStatusBadge(order.status)}</TableCell>
-                                  <TableCell>
-                                    <div className="flex items-center gap-1">
-                                      <Clock className="h-3 w-3 text-muted-foreground" />
-                                      <span>{order.estimated_time} min</span>
-                                    </div>
-                                  </TableCell>
-                                  <TableCell>₹{Number(order.total).toFixed(2)}</TableCell>
-                                </TableRow>
-                              ))
-                          )}
-                        </TableBody>
-                      </Table>
-                    </div>
-                  </TabsContent>
-                ))}
-              </Tabs>
+              <OrdersDisplay orders={orders} isAdmin={true} />
             </CardContent>
           </Card>
           
