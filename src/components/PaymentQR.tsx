@@ -50,9 +50,9 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       setUpiError('');
       
       // Validate UPI ID
-      const error = validateUpiId(upiId);
-      if (error) {
-        setUpiError(error);
+      const validationError = validateUpiId(upiId);
+      if (validationError) {
+        setUpiError(validationError);
         return;
       }
       
