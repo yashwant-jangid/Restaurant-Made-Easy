@@ -9,7 +9,101 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      active_tables: {
+        Row: {
+          id: number
+          status: string
+          table_number: number
+          updated_at: string
+        }
+        Insert: {
+          id?: number
+          status: string
+          table_number: number
+          updated_at?: string
+        }
+        Update: {
+          id?: number
+          status?: string
+          table_number?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      order_items: {
+        Row: {
+          id: string
+          image: string | null
+          item_id: string
+          name: string
+          order_id: string
+          price: number
+          quantity: number
+        }
+        Insert: {
+          id?: string
+          image?: string | null
+          item_id: string
+          name: string
+          order_id: string
+          price: number
+          quantity: number
+        }
+        Update: {
+          id?: string
+          image?: string | null
+          item_id?: string
+          name?: string
+          order_id?: string
+          price?: number
+          quantity?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "order_items_order_id_fkey"
+            columns: ["order_id"]
+            isOneToOne: false
+            referencedRelation: "orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      orders: {
+        Row: {
+          created_at: string
+          estimated_time: number
+          id: string
+          order_number: string
+          payment_details: Json | null
+          payment_method: string | null
+          status: string
+          table_number: number
+          total: number
+        }
+        Insert: {
+          created_at?: string
+          estimated_time: number
+          id?: string
+          order_number: string
+          payment_details?: Json | null
+          payment_method?: string | null
+          status: string
+          table_number: number
+          total: number
+        }
+        Update: {
+          created_at?: string
+          estimated_time?: number
+          id?: string
+          order_number?: string
+          payment_details?: Json | null
+          payment_method?: string | null
+          status?: string
+          table_number?: number
+          total?: number
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never

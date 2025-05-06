@@ -22,16 +22,37 @@ interface PaymentQRProps {
   onPaymentComplete: () => void;
 }
 
+// Regular expression for common UPI ID formats
+const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/;
+
 const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   const { cart } = useCart();
   const [upiId, setUpiId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
+  const [upiError, setUpiError] = useState('');
+  
+  const validateUpiId = (id: string) => {
+    if (!id.trim()) {
+      return "UPI ID is required";
+    }
+    
+    if (!UPI_REGEX.test(id)) {
+      return "Invalid UPI ID format. Example: username@bankname";
+    }
+    
+    return "";
+  };
   
   const handlePaymentComplete = async () => {
     try {
-      if (!upiId.trim()) {
-        toast.error("Please enter a valid UPI ID");
+      // Reset any previous errors
+      setUpiError('');
+      
+      // Validate UPI ID
+      const error = validateUpiId(upiId);
+      if (error) {
+        setUpiError(error);
         return;
       }
       
@@ -51,59 +72,26 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         payment_details: { upi_id: upiId }
       };
       
-      // Try to save to Supabase with error handling and retries
-      let savedOrderId = null;
-      let retryCount = 0;
-      const maxRetries = 2;
+      console.log("Attempting to save order:", orderData);
       
-      while (retryCount <= maxRetries && !savedOrderId) {
-        try {
-          console.log(`Attempt ${retryCount + 1} to save order`);
-          const { data, error } = await supabase
-            .from('orders')
-            .insert(orderData)
-            .select('id')
-            .single();
-          
-          if (error) {
-            console.error(`Attempt ${retryCount + 1} failed:`, error);
-            throw error;
-          }
-          
-          savedOrderId = data.id;
-          console.log('Order saved successfully:', data);
-        } catch (err) {
-          retryCount++;
-          if (retryCount > maxRetries) {
-            throw err;
-          }
-          // Wait before retry (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
-        }
+      // Save to Supabase with error handling
+      const { data, error } = await supabase
+        .from('orders')
+        .insert(orderData)
+        .select('id')
+        .single();
+      
+      if (error) {
+        console.error("Error saving order:", error);
+        throw error;
       }
       
-      // If we couldn't save to the database after retries, use local fallback
-      if (!savedOrderId) {
-        console.log('Using local fallback for order');
-        // Save order to localStorage as fallback
-        const fallbackOrder = {
-          id: `local-${Date.now()}`,
-          ...orderData,
-          created_at: new Date().toISOString()
-        };
-        
-        const savedOrders = JSON.parse(localStorage.getItem('pendingOrders') || '[]');
-        savedOrders.push(fallbackOrder);
-        localStorage.setItem('pendingOrders', JSON.stringify(savedOrders));
-        
-        toast.success(`Order #${orderNumber} placed successfully!`);
-        toast.info('Your order is saved locally and will sync when connection is restored');
-        
-        // Continue with payment completion
-        setIsOpen(false);
-        onPaymentComplete();
-        return;
+      if (!data?.id) {
+        throw new Error("Failed to get order ID after insertion");
       }
+      
+      const savedOrderId = data.id;
+      console.log('Order saved successfully with ID:', savedOrderId);
       
       // Insert order items
       const orderItems = cart.items.map(item => ({
@@ -115,39 +103,37 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         image: item.image
       }));
       
+      console.log("Saving order items:", orderItems);
+      
       const { error: itemsError } = await supabase
         .from('order_items')
         .insert(orderItems);
       
       if (itemsError) {
-        console.warn('Error saving order items, will try to save locally:', itemsError);
-        // Save items to localStorage as fallback
-        localStorage.setItem(`order_items_${savedOrderId}`, JSON.stringify(orderItems));
+        console.error('Error saving order items:', itemsError);
+        throw itemsError;
       }
       
       // Update the table status to occupied
-      try {
-        const { error: tableError } = await supabase
-          .from('active_tables')
-          .update({ status: 'occupied' })
-          .eq('table_number', cart.tableNumber);
-        
-        if (tableError) {
-          console.warn('Error updating table status:', tableError);
-        }
-      } catch (tableUpdateError) {
-        console.warn('Failed to update table status:', tableUpdateError);
+      console.log(`Updating table ${cart.tableNumber} status to occupied`);
+      const { error: tableError } = await supabase
+        .from('active_tables')
+        .update({ status: 'occupied' })
+        .eq('table_number', cart.tableNumber);
+      
+      if (tableError) {
+        console.warn('Error updating table status:', tableError);
       }
       
       // Show success toast
       toast.success(`Order #${orderNumber} placed successfully!`);
       
-      // Continue with regular payment completion
+      // Continue with payment completion
       setIsOpen(false);
       onPaymentComplete();
     } catch (error) {
-      console.error('Error saving order:', error);
-      toast.error('Failed to save order. Please try again.');
+      console.error('Error during payment process:', error);
+      toast.error('Failed to process payment. Please try again.');
     } finally {
       setIsProcessing(false);
     }
@@ -178,9 +164,15 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
               id="upi-id" 
               placeholder="yourname@upi" 
               value={upiId} 
-              onChange={(e) => setUpiId(e.target.value)}
-              className="w-full"
+              onChange={(e) => {
+                setUpiId(e.target.value);
+                if (upiError) setUpiError('');
+              }}
+              className={`w-full ${upiError ? 'border-red-500' : ''}`}
             />
+            {upiError && (
+              <p className="text-sm text-red-500">{upiError}</p>
+            )}
           </div>
           <div className="text-sm text-muted-foreground">
             <p>Examples: yourname@okaxis, yourname@okicici, yourname@ybl</p>

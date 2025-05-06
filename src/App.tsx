@@ -1,36 +1,36 @@
 
-import { Toaster } from "@/components/ui/toaster";
-import { Toaster as Sonner } from "@/components/ui/sonner";
-import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import MainLayout from "./layouts/MainLayout";
-import Index from "./pages/Index";
-import Menu from "./pages/Menu";
-import Status from "./pages/Status";
-import Dashboard from "./pages/Dashboard";
-import Feedback from "./pages/Feedback";
-import NotFound from "./pages/NotFound";
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import MainLayout from '@/layouts/MainLayout';
+import Index from '@/pages/Index';
+import Menu from '@/pages/Menu';
+import NotFound from '@/pages/NotFound';
+import Status from '@/pages/Status';
+import Dashboard from '@/pages/Dashboard';
+import Feedback from '@/pages/Feedback';
+import { CartProvider } from '@/context/CartContext';
+import { Toaster } from '@/components/ui/sonner';
+import { UserRoleProvider } from '@/context/UserRoleContext';
 
-const queryClient = new QueryClient();
-
-const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<MainLayout><Index /></MainLayout>} />
-          <Route path="/menu" element={<MainLayout><Menu /></MainLayout>} />
-          <Route path="/status" element={<MainLayout><Status /></MainLayout>} />
-          <Route path="/dashboard" element={<MainLayout><Dashboard /></MainLayout>} />
-          <Route path="/feedback" element={<MainLayout><Feedback /></MainLayout>} />
-          <Route path="*" element={<MainLayout><NotFound /></MainLayout>} />
-        </Routes>
-      </BrowserRouter>
-    </TooltipProvider>
-  </QueryClientProvider>
-);
+function App() {
+  return (
+    <CartProvider>
+      <UserRoleProvider>
+        <Router>
+          <Routes>
+            <Route path="/" element={<MainLayout />}>
+              <Route index element={<Index />} />
+              <Route path="menu" element={<Menu />} />
+              <Route path="status" element={<Status />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="feedback" element={<Feedback />} />
+              <Route path="*" element={<NotFound />} />
+            </Route>
+          </Routes>
+        </Router>
+        <Toaster richColors position="top-center" />
+      </UserRoleProvider>
+    </CartProvider>
+  );
+}
 
 export default App;
