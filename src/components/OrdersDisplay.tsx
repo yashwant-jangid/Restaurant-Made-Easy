@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -22,7 +21,6 @@ import {
   ArrowRight,
   ShoppingCart
 } from "lucide-react";
-import { useNavigate } from 'react-router-dom';
 
 interface Order {
   id: string;
