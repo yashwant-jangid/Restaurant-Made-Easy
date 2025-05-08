@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { QrCode, IndianRupee } from 'lucide-react';
+import { IndianRupee, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,7 +26,7 @@ interface PaymentQRProps {
 const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/;
 
 // Payment verification states
-type PaymentStatus = 'initial' | 'showing-qr' | 'verifying' | 'completed';
+type PaymentStatus = 'initial' | 'processing' | 'verifying' | 'completed';
 
 const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
   const { cart } = useCart();
@@ -49,7 +49,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
     return "";
   };
 
-  const handleShowQR = () => {
+  const handleInitiatePayment = () => {
     // Reset any previous errors
     setUpiError('');
     
@@ -60,8 +60,14 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       return;
     }
     
-    // Show QR code
-    setPaymentStatus('showing-qr');
+    // Initiate UPI payment
+    setPaymentStatus('processing');
+    
+    // In a real app, this would initiate a UPI payment request
+    // Here we'll just simulate the process
+    toast.info(`Payment request sent to ${upiId}`, {
+      description: `Please complete the payment of ₹${amount.toFixed(2)} in your UPI app`
+    });
   };
   
   const handleVerifyPayment = async () => {
@@ -77,6 +83,16 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       // In a real app, you would verify this transaction ID with a payment gateway
       // Here we'll simulate a verification process with a delay
       await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Verify payment based on transaction ID format
+      const isValidTransaction = /^[A-Za-z0-9]{10,}$/.test(transactionId.trim());
+      
+      if (!isValidTransaction) {
+        toast.error("Invalid transaction ID format");
+        setPaymentStatus('processing');
+        setIsProcessing(false);
+        return;
+      }
       
       // Generate a random 4-digit order number
       const orderNumber = Math.floor(1000 + Math.random() * 9000).toString();
@@ -159,7 +175,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
     } catch (error) {
       console.error('Error during payment process:', error);
       toast.error('Failed to process payment. Please try again.');
-      setPaymentStatus('showing-qr');
+      setPaymentStatus('processing');
     } finally {
       setIsProcessing(false);
     }
@@ -197,33 +213,26 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
           </div>
         );
         
-      case 'showing-qr':
+      case 'processing':
         return (
           <div className="space-y-4 py-4">
-            <div className="flex flex-col items-center">
-              <div className="border border-dashed border-slate-300 p-3 rounded-lg mb-4">
-                <div className="bg-white p-4 rounded-md">
-                  {/* Sample QR code image - You would generate a real QR code based on UPI ID and amount */}
-                  <img 
-                    src="https://fyjjprntuuopguzeifuu.supabase.co/storage/v1/object/public/demo-images/payment-qr.png" 
-                    alt="Payment QR Code" 
-                    className="w-48 h-48 mx-auto"
-                  />
-                </div>
-              </div>
-              <p className="text-center font-medium text-lg">₹{amount.toFixed(2)}</p>
-              <p className="text-center text-sm text-muted-foreground mb-4">
-                Scan with any UPI app to pay
+            <div className="bg-secondary/50 p-4 rounded-lg my-4">
+              <p className="text-center font-medium">Payment request sent</p>
+              <p className="text-center text-sm text-muted-foreground mb-2">
+                Complete the payment of ₹{amount.toFixed(2)} in your UPI app
               </p>
-              <div className="w-full space-y-3">
-                <Label htmlFor="transaction-id">Enter Transaction ID</Label>
-                <Input 
-                  id="transaction-id"
-                  placeholder="e.g. UPID12345678"
-                  value={transactionId}
-                  onChange={(e) => setTransactionId(e.target.value)}
-                />
-              </div>
+              <p className="text-center text-green-600 font-medium text-sm">
+                UPI ID: {upiId}
+              </p>
+            </div>
+            <div className="w-full space-y-3">
+              <Label htmlFor="transaction-id">Enter Transaction ID after payment</Label>
+              <Input 
+                id="transaction-id"
+                placeholder="e.g. UPID12345678"
+                value={transactionId}
+                onChange={(e) => setTransactionId(e.target.value)}
+              />
             </div>
           </div>
         );
@@ -243,9 +252,7 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         return (
           <div className="py-6 flex flex-col items-center">
             <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mb-4">
-              <svg className="w-6 h-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-              </svg>
+              <Check className="w-6 h-6 text-green-600" />
             </div>
             <p className="text-center font-medium">Payment successful!</p>
             <p className="text-center text-sm text-muted-foreground">
@@ -262,14 +269,14 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
         return (
           <Button 
             variant="default"
-            onClick={handleShowQR}
+            onClick={handleInitiatePayment}
             className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700"
           >
-            Continue
+            Pay Now
           </Button>
         );
         
-      case 'showing-qr':
+      case 'processing':
         return (
           <div className="flex flex-col gap-3 w-full">
             <Button 
@@ -315,8 +322,8 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
           <DialogDescription>
             {paymentStatus === 'initial' ? (
               `Enter your UPI ID to pay ₹${amount.toFixed(2)}`
-            ) : paymentStatus === 'showing-qr' ? (
-              `Scan QR code to pay ₹${amount.toFixed(2)}`
+            ) : paymentStatus === 'processing' ? (
+              `Complete payment of ₹${amount.toFixed(2)} in your UPI app`
             ) : (
               `Processing payment of ₹${amount.toFixed(2)}`
             )}
@@ -334,3 +341,4 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
 };
 
 export default PaymentQR;
+
