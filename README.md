@@ -1,6 +1,6 @@
 # Welcome to my project "Restaurant Made Easy"
 
-## Project info
+## Project info pro
 
 **URL**: https://restaurantmadeeasy.netlify.app/
 
