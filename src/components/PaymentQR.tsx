@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { IndianRupee, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -20,6 +19,8 @@ import { supabase } from '@/integrations/supabase/client';
 interface PaymentQRProps {
   amount: number;
   onPaymentComplete: () => void;
+  tableNumber: number; // Pass table number as prop instead of using useCart
+  estimatedTime: number; // Pass estimated time as prop instead of using useCart
 }
 
 // Regular expression for common UPI ID formats
@@ -28,8 +29,12 @@ const UPI_REGEX = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9]+$/;
 // Payment verification states
 type PaymentStatus = 'initial' | 'processing' | 'verifying' | 'completed';
 
-const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
-  const { cart } = useCart();
+const PaymentQR: React.FC<PaymentQRProps> = ({ 
+  amount, 
+  onPaymentComplete, 
+  tableNumber,
+  estimatedTime 
+}) => {
   const [upiId, setUpiId] = useState('');
   const [transactionId, setTransactionId] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
@@ -100,10 +105,10 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       // Create order data object
       const orderData = {
         order_number: orderNumber,
-        table_number: cart.tableNumber,
+        table_number: tableNumber,
         status: 'pending',
         total: amount,
-        estimated_time: cart.estimatedTime,
+        estimated_time: estimatedTime,
         payment_method: 'UPI',
         payment_details: { 
           upi_id: upiId,
@@ -132,33 +137,12 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
       const savedOrderId = data.id;
       console.log('Order saved successfully with ID:', savedOrderId);
       
-      // Insert order items
-      const orderItems = cart.items.map(item => ({
-        order_id: savedOrderId,
-        item_id: item.id,
-        name: item.name,
-        price: item.price,
-        quantity: item.quantity,
-        image: item.image
-      }));
-      
-      console.log("Saving order items:", orderItems);
-      
-      const { error: itemsError } = await supabase
-        .from('order_items')
-        .insert(orderItems);
-      
-      if (itemsError) {
-        console.error('Error saving order items:', itemsError);
-        throw itemsError;
-      }
-      
       // Update the table status to occupied
-      console.log(`Updating table ${cart.tableNumber} status to occupied`);
+      console.log(`Updating table ${tableNumber} status to occupied`);
       const { error: tableError } = await supabase
         .from('active_tables')
         .update({ status: 'occupied' })
-        .eq('table_number', cart.tableNumber);
+        .eq('table_number', tableNumber);
       
       if (tableError) {
         console.warn('Error updating table status:', tableError);
@@ -341,4 +325,3 @@ const PaymentQR: React.FC<PaymentQRProps> = ({ amount, onPaymentComplete }) => {
 };
 
 export default PaymentQR;
-

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { useCart } from '@/context/CartContext';
 import { 
@@ -193,7 +192,9 @@ const Cart: React.FC = () => {
           {cart.items.length > 0 ? (
             <PaymentQR 
               amount={totalAmount} 
-              onPaymentComplete={handlePaymentComplete} 
+              onPaymentComplete={handlePaymentComplete}
+              tableNumber={cart.tableNumber}
+              estimatedTime={cart.estimatedTime}
             />
           ) : (
             <Button variant="outline" onClick={() => setIsOpen(false)} className="w-full">
