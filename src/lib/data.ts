@@ -1,3 +1,4 @@
+
 export interface MenuItem {
   id: string;
   name: string;
@@ -33,7 +34,7 @@ export const menuItems: MenuItem[] = [
     price: 199,
     image: "https://images.unsplash.com/photo-1550547660-d9450f859349?w=800&h=600&fit=crop",
     category: "Burgers",
-    preparationTime: 15,
+    preparationTime: 5,
     popular: true,
     tags: ["vegetarian", "burger", "classic"],
     complexity: 2
